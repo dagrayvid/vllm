@@ -323,6 +323,13 @@ class EngineCore:
         # Initialize kv cache and warmup the execution
         self.model_executor.initialize_from_config(kv_cache_configs)
 
+        if vllm_config.kv_transfer_config is not None:
+            hashes = self.collective_rpc(
+                "get_kv_connector_compatibility_hash")
+            non_none = [h for h in hashes if h is not None]
+            if non_none:
+                vllm_config.kv_transfer_config.compatibility_hash = non_none[0]
+
         elapsed = time.time() - start
         compile_time = vllm_config.compilation_config.compilation_time
         encoder_compile_time = vllm_config.compilation_config.encoder_compilation_time
@@ -1635,6 +1642,11 @@ class EngineCoreProc(EngineCore):
                 ),
                 kv_cache_max_concurrency=(
                     self.vllm_config.cache_config.kv_cache_max_concurrency
+                ),
+                kv_connector_compatibility_hash=(
+                    self.vllm_config.kv_transfer_config.compatibility_hash
+                    if self.vllm_config.kv_transfer_config is not None
+                    else None
                 ),
             )
             ready_payload = msgspec.msgpack.encode(ready_response)
